@@ -1,0 +1,5 @@
+library(forecast)
+temp <- read.csv("C:/Users/DELL/Documents/TimeSeries_2025/ejem1_temperatura.csv")
+y <- ts(temp , start=1, frequency =1)
+temp_ses1 <- ses(y, h=1, initial="simple", alpha =0.1)
+summary(temp_ses1)
