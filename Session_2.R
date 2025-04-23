@@ -4,7 +4,7 @@
 library(forecast)
 
 # Cargar la serie de población
-pob <- read.csv("C:/Users/DELL/Documents/TimeSeries_2025/poblacion_SV.csv", header = FALSE)
+pob <- read.csv("C:/Users/Wendy Rodríguez/Documents/R/TimeSeries_2025/poblacion_SV.csv", header = FALSE)
 y <- ts(pob, start = c(1960), frequency = 1)
 
 # Aplicar modelo de Holt
@@ -17,7 +17,7 @@ summary(holt_pob)
 library(forecast)
 
 # Cargar la serie de pasajeros aéreos
-pas <- read.csv("C:/Users/DELL/Documents/TimeSeries_2025/AirPassengers.csv")
+pas <- read.csv("C:/Users/Wendy Rodríguez/Documents/R/TimeSeries_2025/AirPassengers.csv")
 z <- ts(pas[[2]], start = c(1949), frequency = 12)
 
 # Graficar la serie original
