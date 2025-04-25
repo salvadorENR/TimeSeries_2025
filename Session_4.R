@@ -1,0 +1,8 @@
+install.packages("tseries")
+library(tseries)
+data("Nile")
+plot(Nile, main="Serie temporal: Caudal anual del r o Nilo", ylab="Caudal",xlab="A o")
+media<-mean(Nile)
+varianza<-var(Nile)
+acf_val<-acf(Nile, main="Correlograma de la serie Nile", plot=TRUE)
+adf_result<-adf.test(Nile)
