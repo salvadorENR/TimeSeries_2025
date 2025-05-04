@@ -10,6 +10,7 @@ varianza<-var(Nile)
 #Calcular auto correlaciones
 acf_vals<- acf(Nile, main= "Correlograma de la serie Nile"
                             , plot=TRUE)
+
 #Prueba de Dickey-Fuller aumentada
 adf_result<-adf.test(Nile)
 #Mostrar resultados
@@ -19,6 +20,7 @@ print(adf_result)
 # Calcular autocorrelaciones
 acf_vals<-acf(Nile,main="Correlograma de la serie Nile"
                             ,plot=TRUE)
+
 #Prueba de Dickey-Fuller  aumentada
 adf_result<-adf.test(Nile)
 #Mostrar resultados
