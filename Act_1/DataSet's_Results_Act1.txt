@@ -1,0 +1,45 @@
+=== Analysis for elecsales ===
+Transformation: Applied 1 order differencing 
+Significant ACF lags: 0 
+Significant PACF lags: 0 
+Suggested model: White noise
+Press [enter] to continue to next dataset...
+
+=== Analysis for ausbeer ===
+Transformation: Applied 2 order differencing 
+Significant ACF lags: 23 
+Significant PACF lags: 7 
+Suggested model: ARMA(p,q) or ARIMA(p,d,q)
+Possible values: p = 7 q = 23 
+Press [enter] to continue to next dataset...
+
+=== Analysis for Nile ===
+Transformation: Applied 1 order differencing 
+Significant ACF lags: 2 
+Significant PACF lags: 4 
+Suggested model: ARMA(p,q) or ARIMA(p,d,q)
+Possible values: p = 4 q = 2 
+Press [enter] to continue to next dataset...
+
+=== Analysis for nottem ===
+Transformation: No differencing needed 
+Significant ACF lags: 20 
+Significant PACF lags: 11 
+Suggested model: ARMA(p,q) or ARIMA(p,d,q)
+Possible values: p = 11 q = 20 
+Press [enter] to continue to next dataset...
+
+=== Analysis for LakeHuron ===
+Transformation: Applied 1 order differencing 
+Significant ACF lags: 1 
+Significant PACF lags: 1 
+Suggested model: ARMA(p,q) or ARIMA(p,d,q)
+Possible values: p = 1 q = 1 
+Press [enter] to continue to next dataset...
+
+=== Analysis for UKgas ===
+Transformation: Applied 1 order differencing 
+Significant ACF lags: 10 
+Significant PACF lags: 3 
+Suggested model: ARMA(p,q) or ARIMA(p,d,q)
+Possible values: p = 3 q = 10 
