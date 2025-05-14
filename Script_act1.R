@@ -1,9 +1,14 @@
+#---------------------------------------------------------------------------
+# 1. Plots
+#---------------------------------------------------------------------------
+
 # Load necessary libraries and datasets
 library(forecast)    # For time series functions
 library(ggplot2)     # For plotting
 library(datasets)    # For Nile, LakeHuron
 library(fpp2)        # For elecsales, ausbeer, nottem
 library(ukgasapi)       # For UKgas dataset
+library(ggplot2)   # Para los gráficos
 
 # Function to analyze a time series dataset
 analyze_series <- function(data, name) {
@@ -79,3 +84,85 @@ for (i in seq_along(data_list)) {
     readline(prompt = "Press [enter] to continue to next dataset...")
   }
 }
+
+#---------------------------------------------------------------------
+# 2. Differentiation 
+#---------------------------------------------------------------------
+
+# === ELECSALES ===
+elecsales_diff <- diff(elecsales, differences = 1)
+autoplot(elecsales_diff) +
+  ggtitle("elecsales - Serie diferenciada (orden 1)") +
+  xlab("Tiempo") + ylab("Diferencia")
+
+# === AUSBEER ===
+ausbeer_diff <- diff(diff(ausbeer, lag = 4), differences = 1)
+autoplot(ausbeer_diff) +
+  ggtitle("ausbeer - Serie diferenciada (regular + estacional)") +
+  xlab("Tiempo") + ylab("Diferencia")
+
+# === NILE ===
+Nile_diff <- diff(Nile, differences = 1)
+autoplot(Nile_diff) +
+  ggtitle("Nile - Serie diferenciada (orden 1)") +
+  xlab("Tiempo") + ylab("Diferencia")
+
+# === NOTTEM === (no se diferencia)
+autoplot(nottem) +
+  ggtitle("nottem - Serie original (sin diferencia)") +
+  xlab("Tiempo") + ylab("Valor")
+
+# === LAKEHURON ===
+LakeHuron_diff <- diff(LakeHuron, differences = 1)
+autoplot(LakeHuron_diff) +
+  ggtitle("LakeHuron - Serie diferenciada (orden 1)") +
+  xlab("Tiempo") + ylab("Diferencia")
+
+# === UKGAS ===
+UKgas_diff <- diff(diff(UKgas, lag = 4), differences = 1)
+autoplot(UKgas_diff) +
+  ggtitle("UKgas - Serie diferenciada (regular + estacional)") +
+  xlab("Tiempo") + ylab("Diferencia")
+
+
+#-------------------------------------------------------------------------------
+# 3. ACF and PACF
+#-------------------------------------------------------------------------------
+
+# Serie 1: elecsales (diferenciada)
+elecsales_diff <- diff(elecsales, differences = 1)
+ggAcf(elecsales_diff) + ggtitle("ACF - elecsales (diferenciada)")
+ggPacf(elecsales_diff) + ggtitle("PACF - elecsales (diferenciada)")
+
+# Serie 2: ausbeer (diferencia regular + estacional)
+ausbeer_diff <- diff(diff(ausbeer, lag = 4), differences = 1)
+ggAcf(ausbeer_diff) + ggtitle("ACF - ausbeer (diferenciada)")
+ggPacf(ausbeer_diff) + ggtitle("PACF - ausbeer (diferenciada)")
+
+# Serie 3: Nile (diferenciada)
+Nile_diff <- diff(Nile, differences = 1)
+ggAcf(Nile_diff) + ggtitle("ACF - Nile (diferenciada)")
+ggPacf(Nile_diff) + ggtitle("PACF - Nile (diferenciada)")
+
+# Serie 4: nottem (no se diferencia)
+ggAcf(nottem) + ggtitle("ACF - nottem (serie original)")
+ggPacf(nottem) + ggtitle("PACF - nottem (serie original)")
+
+# Serie 5: LakeHuron (diferenciada)
+LakeHuron_diff <- diff(LakeHuron, differences = 1)
+ggAcf(LakeHuron_diff) + ggtitle("ACF - LakeHuron (diferenciada)")
+ggPacf(LakeHuron_diff) + ggtitle("PACF - LakeHuron (diferenciada)")
+
+# Serie 6: UKgas (diferencia regular + estacional)
+UKgas_diff <- diff(diff(UKgas, lag = 4), differences = 1)
+ggAcf(UKgas_diff) + ggtitle("ACF - UKgas (diferenciada)")
+ggPacf(UKgas_diff) + ggtitle("PACF - UKgas (diferenciada)")
+
+
+auto.arima(elecsales)
+auto.arima(ausbeer)
+auto.arima(ausbeer_diff)
+
+
+
+

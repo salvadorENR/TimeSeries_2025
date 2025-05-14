@@ -1,3 +1,7 @@
+#---------------------------------------------------------------------------
+# Plots
+#---------------------------------------------------------------------------
+
 # Load necessary libraries and datasets
 library(forecast)    # For time series tools
 library(ggplot2)     # For plotting
@@ -93,3 +97,11 @@ for (i in seq_along(data_list)) {
     readline(prompt = "Press [enter] to continue to the next dataset...")
   }
 }
+
+#---------------------------------------------------------------------
+# Part II: Differentiation 
+#---------------------------------------------------------------------
+
+
+
+
