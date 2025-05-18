@@ -107,10 +107,11 @@ autoplot(Nile_diff) +
   ggtitle("Nile - Serie diferenciada (orden 1)") +
   xlab("Tiempo") + ylab("Diferencia")
 
-# === NOTTEM === (no se diferencia)
-autoplot(nottem) +
-  ggtitle("nottem - Serie original (sin diferencia)") +
-  xlab("Tiempo") + ylab("Valor")
+# === NOTTEM ===
+nottem_diff <- diff(diff(nottem, lag = 12))
+autoplot(nottem_diff) +
+  ggtitle("nottem - Serie diferenciada (estacional)") +
+  ylab("Diferencia") + xlab("Tiempo")
 
 # === LAKEHURON ===
 LakeHuron_diff <- diff(LakeHuron, differences = 1)
@@ -144,9 +145,10 @@ Nile_diff <- diff(Nile, differences = 1)
 ggAcf(Nile_diff) + ggtitle("ACF - Nile (diferenciada)")
 ggPacf(Nile_diff) + ggtitle("PACF - Nile (diferenciada)")
 
-# Serie 4: nottem (no se diferencia)
-ggAcf(nottem) + ggtitle("ACF - nottem (serie original)")
-ggPacf(nottem) + ggtitle("PACF - nottem (serie original)")
+# Serie 4: nottem (no diferenciada)
+nottem_diff <- diff(diff(nottem, lag = 12))
+ggAcf(nottem_diff) + ggtitle("ACF - nottem (diferenciada)")
+ggPacf(nottem_diff) + ggtitle("PACF - nottem (diferenciada)")
 
 # Serie 5: LakeHuron (diferenciada)
 LakeHuron_diff <- diff(LakeHuron, differences = 1)

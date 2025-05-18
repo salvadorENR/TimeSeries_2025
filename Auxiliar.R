@@ -104,7 +104,12 @@ autoplot(Nile_diff) +
   ggtitle("Nile - Serie diferenciada (orden 1)") +
   xlab("Tiempo") + ylab("Diferencia")
 
-
+# Aplicar diferenciación estacional (lag = 12)
+nottem_diff <- diff(diff(nottem, lag = 12))
+autoplot(nottem_diff) +
+  ggtitle("nottem - Serie diferenciada (estacional)") +
+  ylab("Diferencia") +
+  xlab("Tiempo")
 
 # LakeHuron: diferenciación de orden 1
 LakeHuron_diff <- diff(LakeHuron, differences = 1)
