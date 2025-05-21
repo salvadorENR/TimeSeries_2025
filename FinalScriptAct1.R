@@ -1,12 +1,13 @@
-# Load necessary libraries and datasets
-library(forecast)    # For time series functions
-library(ggplot2)     # For plotting
-library(datasets)    # For Nile, LakeHuron
-library(fpp2)        # For elecsales, ausbeer, nottem
-library(ukgasapi)       # For UKgas dataset
-library(ggplot2)   # Para los gráficos
+# Cargar las bibliotecas necesarias y los conjuntos de datos
+library(forecast)    # Para funciones de series de tiempo
+library(ggplot2)     # Para gráficos
+library(datasets)    # Para los conjuntos de datos Nile, LakeHuron
+library(fpp2)        # Para elecsales, ausbeer, nottem
+library(ukgasapi)    # Para el conjunto de datos UKgas
+library(gridExtra)   # Para organizar los gráficos
+
 #--------------------------------------------------------------
-# 1.ELECSALES
+# 1. ELECSALES
 #--------------------------------------------------------------
 autoplot(elecsales) +
   ggtitle("Serie original - elecsales") +
@@ -26,53 +27,10 @@ gridExtra::grid.arrange(
 
 Arima(elecsales, c(1, 1, 0))
 auto.arima(elecsales)
-model_1<- Arima(ausbeer, order = c(1, 1, 0), 
-                seasonal = list(order = c(0, 1, 0), period = 6))
-summary(model_1)
 
-model_2<-auto.arima(ausbeer)
-summary(model_2)
-
-
-# Extract AIC and BIC
-aic_1 <- AIC(model_1)
-bic_1 <- BIC(model_1)
-
-aic_2 <- AIC(model_2)
-bic_2 <- BIC(model_2)
-
-# Create a comparison table
-comparison <- data.frame(
-  Model = c("model_1", "model_2"),
-  AIC = c(aic_1, aic_2),
-  BIC = c(bic_1, bic_2)
-)
-
-# Print the comparison table
-cat("=== Model Comparison ===\n")
-print(comparison)
-
-# Determine best model by AIC
-if (aic_1 < aic_2) {
-  cat("\nBased on AIC, the best model is: model_1\n")
-} else if (aic_2 < aic_1) {
-  cat("\nBased on AIC, the best model is: model_2\n")
-} else {
-  cat("\nBoth models have the same AIC.\n")
-}
-
-# Determine best model by BIC
-if (bic_1 < bic_2) {
-  cat("Based on BIC, the best model is: model_1\n")
-} else if (bic_2 < bic_1) {
-  cat("Based on BIC, the best model is: model_2\n")
-} else {
-  cat("Both models have the same BIC.\n")
-}
-
-#------------------------------------------------------------------
-# 2.AUSBEER
-#---------------------------------------------------------------
+#--------------------------------------------------------------
+# 2. AUSBEER
+#--------------------------------------------------------------
 autoplot(ausbeer) +
   ggtitle("Serie original - ausbeer") +
   xlab("Tiempo") + ylab("Valor")
@@ -89,54 +47,38 @@ gridExtra::grid.arrange(
   ncol = 1
 )
 
-
-model_1<- Arima(ausbeer, order = c(1, 1, 1), 
-               seasonal = list(order = c(0, 1, 1), period = 12))
+model_1 <- Arima(ausbeer, order = c(1, 1, 1), 
+                 seasonal = list(order = c(0, 1, 1), period = 12))
 summary(model_1)
 
-model_2<-auto.arima(ausbeer)
+model_2 <- auto.arima(ausbeer)
 summary(model_2)
 
+aic_1 <- AIC(model_1); bic_1 <- BIC(model_1)
+aic_2 <- AIC(model_2); bic_2 <- BIC(model_2)
 
-# Extract AIC and BIC
-aic_1 <- AIC(model_1)
-bic_1 <- BIC(model_1)
+comparison <- data.frame(Model = c("model_1", "model_2"), AIC = c(aic_1, aic_2), BIC = c(bic_1, bic_2))
+cat("=== Comparación de Modelos ===\n"); print(comparison)
 
-aic_2 <- AIC(model_2)
-bic_2 <- BIC(model_2)
-
-# Create a comparison table
-comparison <- data.frame(
-  Model = c("model_1", "model_2"),
-  AIC = c(aic_1, aic_2),
-  BIC = c(bic_1, bic_2)
-)
-
-# Print the comparison table
-cat("=== Model Comparison ===\n")
-print(comparison)
-
-# Determine best model by AIC
 if (aic_1 < aic_2) {
-  cat("\nBased on AIC, the best model is: model_1\n")
+  cat("\nSegún AIC, el mejor modelo es: model_1\n")
 } else if (aic_2 < aic_1) {
-  cat("\nBased on AIC, the best model is: model_2\n")
+  cat("\nSegún AIC, el mejor modelo es: model_2\n")
 } else {
-  cat("\nBoth models have the same AIC.\n")
+  cat("\nAmbos modelos tienen el mismo AIC.\n")
 }
 
-# Determine best model by BIC
 if (bic_1 < bic_2) {
-  cat("Based on BIC, the best model is: model_1\n")
+  cat("Según BIC, el mejor modelo es: model_1\n")
 } else if (bic_2 < bic_1) {
-  cat("Based on BIC, the best model is: model_2\n")
+  cat("Según BIC, el mejor modelo es: model_2\n")
 } else {
-  cat("Both models have the same BIC.\n")
+  cat("Ambos modelos tienen el mismo BIC.\n")
 }
 
 #--------------------------------------------------------------
-# 3.NILE
-#-------------------------------------------------------------
+# 3. NILE
+#--------------------------------------------------------------
 autoplot(Nile) +
   ggtitle("Serie original - Nile") +
   xlab("Tiempo") + ylab("Valor")
@@ -153,52 +95,36 @@ gridExtra::grid.arrange(
   ncol = 1
 )
 
-model_1<- Arima(Nile, order = c(1, 1, 1))
+model_1 <- Arima(Nile, order = c(1, 1, 1))
 summary(model_1)
 
-model_2<-auto.arima(Nile)
+model_2 <- auto.arima(Nile)
 summary(model_2)
 
+aic_1 <- AIC(model_1); bic_1 <- BIC(model_1)
+aic_2 <- AIC(model_2); bic_2 <- BIC(model_2)
 
-# Extract AIC and BIC
-aic_1 <- AIC(model_1)
-bic_1 <- BIC(model_1)
+comparison <- data.frame(Model = c("model_1", "model_2"), AIC = c(aic_1, aic_2), BIC = c(bic_1, bic_2))
+cat("=== Comparación de Modelos ===\n"); print(comparison)
 
-aic_2 <- AIC(model_2)
-bic_2 <- BIC(model_2)
-
-# Create a comparison table
-comparison <- data.frame(
-  Model = c("model_1", "model_2"),
-  AIC = c(aic_1, aic_2),
-  BIC = c(bic_1, bic_2)
-)
-
-# Print the comparison table
-cat("=== Model Comparison ===\n")
-print(comparison)
-
-# Determine best model by AIC
 if (aic_1 < aic_2) {
-  cat("\nBased on AIC, the best model is: model_1\n")
+  cat("\nSegún AIC, el mejor modelo es: model_1\n")
 } else if (aic_2 < aic_1) {
-  cat("\nBased on AIC, the best model is: model_2\n")
+  cat("\nSegún AIC, el mejor modelo es: model_2\n")
 } else {
-  cat("\nBoth models have the same AIC.\n")
+  cat("\nAmbos modelos tienen el mismo AIC.\n")
 }
 
-# Determine best model by BIC
 if (bic_1 < bic_2) {
-  cat("Based on BIC, the best model is: model_1\n")
+  cat("Según BIC, el mejor modelo es: model_1\n")
 } else if (bic_2 < bic_1) {
-  cat("Based on BIC, the best model is: model_2\n")
+  cat("Según BIC, el mejor modelo es: model_2\n")
 } else {
-  cat("Both models have the same BIC.\n")
+  cat("Ambos modelos tienen el mismo BIC.\n")
 }
-
 
 #--------------------------------------------------------------
-# 4.NOTTEM
+# 4. NOTTEM
 #--------------------------------------------------------------
 autoplot(nottem) +
   ggtitle("Serie original - nottem") +
@@ -216,54 +142,38 @@ gridExtra::grid.arrange(
   ncol = 1
 )
 
-model_1<- Arima(nottem, order = c(1, 0, 1), 
-                seasonal = list(order = c(1, 1, 2), period = 12))
+model_1 <- Arima(nottem, order = c(1, 0, 1), 
+                 seasonal = list(order = c(1, 1, 2), period = 12))
 summary(model_1)
 
-model_2<-auto.arima(nottem)
+model_2 <- auto.arima(nottem)
 summary(model_2)
 
+aic_1 <- AIC(model_1); bic_1 <- BIC(model_1)
+aic_2 <- AIC(model_2); bic_2 <- BIC(model_2)
 
-# Extract AIC and BIC
-aic_1 <- AIC(model_1)
-bic_1 <- BIC(model_1)
+comparison <- data.frame(Model = c("model_1", "model_2"), AIC = c(aic_1, aic_2), BIC = c(bic_1, bic_2))
+cat("=== Comparación de Modelos ===\n"); print(comparison)
 
-aic_2 <- AIC(model_2)
-bic_2 <- BIC(model_2)
-
-# Create a comparison table
-comparison <- data.frame(
-  Model = c("model_1", "model_2"),
-  AIC = c(aic_1, aic_2),
-  BIC = c(bic_1, bic_2)
-)
-
-# Print the comparison table
-cat("=== Model Comparison ===\n")
-print(comparison)
-
-# Determine best model by AIC
 if (aic_1 < aic_2) {
-  cat("\nBased on AIC, the best model is: model_1\n")
+  cat("\nSegún AIC, el mejor modelo es: model_1\n")
 } else if (aic_2 < aic_1) {
-  cat("\nBased on AIC, the best model is: model_2\n")
+  cat("\nSegún AIC, el mejor modelo es: model_2\n")
 } else {
-  cat("\nBoth models have the same AIC.\n")
+  cat("\nAmbos modelos tienen el mismo AIC.\n")
 }
 
-# Determine best model by BIC
 if (bic_1 < bic_2) {
-  cat("Based on BIC, the best model is: model_1\n")
+  cat("Según BIC, el mejor modelo es: model_1\n")
 } else if (bic_2 < bic_1) {
-  cat("Based on BIC, the best model is: model_2\n")
+  cat("Según BIC, el mejor modelo es: model_2\n")
 } else {
-  cat("Both models have the same BIC.\n")
+  cat("Ambos modelos tienen el mismo BIC.\n")
 }
 
-
-#----------------------------------------------------------------
-# 5.LAKEHURON
-#---------------------------------------------------------------
+#--------------------------------------------------------------
+# 5. LAKEHURON
+#--------------------------------------------------------------
 autoplot(LakeHuron) +
   ggtitle("Serie original - LakeHuron") +
   xlab("Tiempo") + ylab("Valor")
@@ -280,52 +190,36 @@ gridExtra::grid.arrange(
   ncol = 1
 )
 
-model_1<- Arima(LakeHuron, order = c(0, 1, 0))
+model_1 <- Arima(LakeHuron, order = c(0, 1, 0))
 summary(model_1)
 
-model_2<-auto.arima(LakeHuron)
+model_2 <- auto.arima(LakeHuron)
 summary(model_2)
 
+aic_1 <- AIC(model_1); bic_1 <- BIC(model_1)
+aic_2 <- AIC(model_2); bic_2 <- BIC(model_2)
 
-# Extract AIC and BIC
-aic_1 <- AIC(model_1)
-bic_1 <- BIC(model_1)
+comparison <- data.frame(Model = c("model_1", "model_2"), AIC = c(aic_1, aic_2), BIC = c(bic_1, bic_2))
+cat("=== Comparación de Modelos ===\n"); print(comparison)
 
-aic_2 <- AIC(model_2)
-bic_2 <- BIC(model_2)
-
-# Create a comparison table
-comparison <- data.frame(
-  Model = c("model_1", "model_2"),
-  AIC = c(aic_1, aic_2),
-  BIC = c(bic_1, bic_2)
-)
-
-# Print the comparison table
-cat("=== Model Comparison ===\n")
-print(comparison)
-
-# Determine best model by AIC
 if (aic_1 < aic_2) {
-  cat("\nBased on AIC, the best model is: model_1\n")
+  cat("\nSegún AIC, el mejor modelo es: model_1\n")
 } else if (aic_2 < aic_1) {
-  cat("\nBased on AIC, the best model is: model_2\n")
+  cat("\nSegún AIC, el mejor modelo es: model_2\n")
 } else {
-  cat("\nBoth models have the same AIC.\n")
+  cat("\nAmbos modelos tienen el mismo AIC.\n")
 }
 
-# Determine best model by BIC
 if (bic_1 < bic_2) {
-  cat("Based on BIC, the best model is: model_1\n")
+  cat("Según BIC, el mejor modelo es: model_1\n")
 } else if (bic_2 < bic_1) {
-  cat("Based on BIC, the best model is: model_2\n")
+  cat("Según BIC, el mejor modelo es: model_2\n")
 } else {
-  cat("Both models have the same BIC.\n")
+  cat("Ambos modelos tienen el mismo BIC.\n")
 }
 
-
-#---------------------------------------------------------------
-# 6.UKGAS
+#--------------------------------------------------------------
+# 6. UKGAS
 #--------------------------------------------------------------
 autoplot(UKgas) +
   ggtitle("Serie original - UKgas") +
@@ -343,46 +237,31 @@ gridExtra::grid.arrange(
   ncol = 1
 )
 
-model_1<- Arima(UKgas, order = c(0, 1, 0), 
-                seasonal = list(order = c(0, 1, 1), period = 2))
+model_1 <- Arima(UKgas, order = c(0, 1, 0), 
+                 seasonal = list(order = c(0, 1, 1), period = 2))
 summary(model_1)
 
-model_2<-auto.arima(UKgas)
+model_2 <- auto.arima(UKgas)
 summary(model_2)
 
+aic_1 <- AIC(model_1); bic_1 <- BIC(model_1)
+aic_2 <- AIC(model_2); bic_2 <- BIC(model_2)
 
-# Extract AIC and BIC
-aic_1 <- AIC(model_1)
-bic_1 <- BIC(model_1)
+comparison <- data.frame(Model = c("model_1", "model_2"), AIC = c(aic_1, aic_2), BIC = c(bic_1, bic_2))
+cat("=== Comparación de Modelos ===\n"); print(comparison)
 
-aic_2 <- AIC(model_2)
-bic_2 <- BIC(model_2)
-
-# Create a comparison table
-comparison <- data.frame(
-  Model = c("model_1", "model_2"),
-  AIC = c(aic_1, aic_2),
-  BIC = c(bic_1, bic_2)
-)
-
-# Print the comparison table
-cat("=== Model Comparison ===\n")
-print(comparison)
-
-# Determine best model by AIC
 if (aic_1 < aic_2) {
-  cat("\nBased on AIC, the best model is: model_1\n")
+  cat("\nSegún AIC, el mejor modelo es: model_1\n")
 } else if (aic_2 < aic_1) {
-  cat("\nBased on AIC, the best model is: model_2\n")
+  cat("\nSegún AIC, el mejor modelo es: model_2\n")
 } else {
-  cat("\nBoth models have the same AIC.\n")
+  cat("\nAmbos modelos tienen el mismo AIC.\n")
 }
 
-# Determine best model by BIC
 if (bic_1 < bic_2) {
-  cat("Based on BIC, the best model is: model_1\n")
+  cat("Según BIC, el mejor modelo es: model_1\n")
 } else if (bic_2 < bic_1) {
-  cat("Based on BIC, the best model is: model_2\n")
+  cat("Según BIC, el mejor modelo es: model_2\n")
 } else {
-  cat("Both models have the same BIC.\n")
+  cat("Ambos modelos tienen el mismo BIC.\n")
 }
