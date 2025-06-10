@@ -35,12 +35,12 @@ if (!dir.exists("datos")) dir.create("datos")
 
 # 5. Exportar CSV ----
 write.csv(datos_educacion, 
-          "datos/datos_educacion_primaria.csv", 
+          "datos_educacion_primaria.csv", 
           row.names = FALSE,
           fileEncoding = "UTF-8")
 
 # 6. Verificación ----
-cat("✓ CSV creado en: 'datos/datos_educacion_primaria.csv'\n",
+cat("✓ CSV creado en: 'datos_educacion_primaria.csv'\n",
     "Periodo:", range(datos_educacion$Año)[1], "-", 
     range(datos_educacion$Año)[2], "\n",
     "Registros:", nrow(datos_educacion), "\n")

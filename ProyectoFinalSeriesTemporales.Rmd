@@ -1,0 +1,82 @@
+---
+title: "Análisis Temporal de la Matrícula en Educación Primaria a Nivel Mundial (1970–2023)"
+author: "Salvador Enrique Rodríguez Hernández (rh06006)"
+date: "`r Sys.Date()`"
+output: 
+  pdf_document:
+    latex_engine: xelatex
+    number_sections: true
+    toc: true
+fontsize: 12pt
+lang: es
+---
+
+# Análisis de la Matrícula en Educación Primaria (1970–2023)
+
+Universidad de El Salvador - Proyecto de Investigación
+
+---
+
+## 1. Introducción
+
+El presente informe tiene como objetivo analizar la evolución histórica de la matrícula en educación primaria a nivel mundial durante el período comprendido entre 1970 y 2023. Para ello, se utiliza un conjunto de datos proporcionado por el **UNESCO Institute for Statistics (UIS)**, disponible públicamente a través del portal de datos del **Banco Mundial**, bajo la licencia **CC BY-4.0**.
+
+El indicador analizado corresponde al número total de alumnos inscritos en el nivel primario, tanto en instituciones públicas como privadas. Los datos se recopilan de los informes oficiales que los países miembros remiten a la UNESCO mediante su encuesta anual de educación. Además, se han armonizado de acuerdo con la **Clasificación Internacional Normalizada de la Educación (CINE)** para garantizar la comparabilidad internacional.
+
+La frecuencia de los datos es anual, y los valores están expresados en millones de alumnos. Este análisis busca identificar patrones de crecimiento, posibles cambios estructurales en la serie, y proponer un modelo ARIMA que permita realizar proyecciones confiables de la matrícula escolar en los próximos años.
+
+
+
+## 1. Cargar librerías
+
+```{r}
+library(tidyverse)
+library(forecast)
+library(tsibble)
+library(lubridate)
+library(ggfortify)
+library(readr)
+
+datos <- read_csv("datos_educacion_primaria.csv") %>%
+  mutate(Año = yearmonth(paste(Año, "-01"))) %>%
+  as_tsibble(index = Año)
+
+ts_original <- ts(datos$Alumnos_millones, start = 1970, frequency = 1)
+ggplot(datos, aes(x = Año, y = Alumnos_millones)) +
+  geom_line(color = "#1E88E5", linewidth = 1.2) +
+  geom_point(color = "#1E88E5", size = 1) +
+  labs(title = "Matrícula en Educación Primaria (1970–2023)",
+       subtitle = "Serie original en millones de alumnos",
+       x = "Año", y = "Alumnos (millones)") +
+  theme_minimal()
+ts_diff1 <- diff(ts_original)
+ts_diff2 <- diff(ts_diff1)
+autoplot(ts_diff2) +
+  labs(title = "Segunda Diferenciación (d = 2)",
+       x = "Año", y = "Diferencia de alumnos (millones)") +
+  theme_minimal()
+par(mfrow = c(1, 2))
+acf(ts_diff2, na.action = na.pass, main = "ACF - Segunda Diferenciación (d=2)")
+pacf(ts_diff2, na.action = na.pass, main = "PACF - Segunda Diferenciación (d=2)")
+par(mfrow = c(1, 1))
+modelo <- auto.arima(ts_original, d = 2, seasonal = FALSE, stepwise = FALSE, approximation = FALSE)
+summary(modelo)
+checkresiduals(modelo)
+n_total <- length(ts_original)
+n_train <- round(n_total * 0.95)
+train <- ts_original[1:n_train]
+test <- ts_original[(n_train + 1):n_total]
+
+modelo_val <- auto.arima(train, d = 2, seasonal = FALSE, stepwise = FALSE, approximation = FALSE)
+pred <- forecast(modelo_val, h = length(test))
+
+accuracy(pred, test)
+```
+\section*{9. Conclusiones}
+
+\begin{itemize}
+  \item La serie presenta una tendencia creciente con baja variabilidad relativa.
+  \item Se requirió aplicar una segunda diferenciación para alcanzar estacionariedad.
+  \item El modelo ARIMA propuesto fue validado con un buen desempeño predictivo.
+  \item Este modelo puede ser útil para proyectar la evolución de la matrícula en los próximos años.
+\end{itemize}
