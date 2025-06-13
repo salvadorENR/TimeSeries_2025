@@ -11,13 +11,9 @@ fontsize: 12pt
 lang: es
 ---
 
-# Análisis de la Matrícula en Educación Primaria (1970–2023)
-
-Universidad de El Salvador - Proyecto de Investigación
-
 ---
 
-## 1. Introducción
+# Introducción
 
 El presente informe tiene como objetivo analizar la evolución histórica de la matrícula en educación primaria a nivel mundial durante el período comprendido entre 1970 y 2023. Para ello, se utiliza un conjunto de datos proporcionado por el **UNESCO Institute for Statistics (UIS)**, disponible públicamente a través del portal de datos del **Banco Mundial**, bajo la licencia **CC BY-4.0**.
 
@@ -26,8 +22,118 @@ El indicador analizado corresponde al número total de alumnos inscritos en el n
 La frecuencia de los datos es anual, y los valores están expresados en millones de alumnos. Este análisis busca identificar patrones de crecimiento, posibles cambios estructurales en la serie, y proponer un modelo ARIMA que permita realizar proyecciones confiables de la matrícula escolar en los próximos años.
 
 
+# Análisis gráfico de la serie..
+A continuación se hará la presentación de la gráfica de la serie de datos originales
 
-## 1. Cargar librerías
+##Gráfica de la serie
+Colocar gráfica aquí
+
+```{r}
+library(tidyverse)
+library(forecast)
+library(tsibble)
+library(lubridate)
+library(ggfortify)
+library(readr)
+
+datos <- read_csv("datos_educacion_primaria.csv") %>%
+  mutate(Año = yearmonth(paste(Año, "-01"))) %>%
+  as_tsibble(index = Año)
+
+ts_original <- ts(datos$Alumnos_millones, start = 1970, frequency = 1)
+ggplot(datos, aes(x = Año, y = Alumnos_millones)) +
+  geom_line(color = "#1E88E5", linewidth = 1.2) +
+  geom_point(color = "#1E88E5", size = 1) +
+  labs(title = "Matrícula en Educación Primaria (1970–2023)",
+       subtitle = "Serie original en millones de alumnos",
+       x = "Año", y = "Alumnos (millones)") +
+  theme_minimal()
+```
+
+
+
+## Análisis de tendencia, variabilidad, estacionalidad etc
+Análisis aquí
+
+
+# Transformación para estacionariedad
+dasdasdsa
+## Justificación del tipo de transformación aplicada
+dkjdskd
+## Proceso para convertir la serie en estacionaria
+dsdsdasda
+```{r}
+ts_diff1 <- diff(ts_original)
+ts_diff2 <- diff(ts_diff1)
+autoplot(ts_diff2) +
+  labs(title = "Segunda Diferenciación (d = 2)",
+       x = "Año", y = "Diferencia de alumnos (millones)") +
+  theme_minimal()
+```
+# Análisis de autocorrelación:
+## Gráfico de la función de autocorrelación simple (ACF) y parcial (PACF)
+dsadsa
+```{r}
+par(mfrow = c(1, 2))
+acf(ts_diff2, na.action = na.pass, main = "ACF - Segunda Diferenciación (d=2)")
+pacf(ts_diff2, na.action = na.pass, main = "PACF - Segunda Diferenciación (d=2)")
+par(mfrow = c(1, 1))
+```
+
+## Análisis de los resultados
+dfsdfsdfsdf
+# Propuesta de modelos ARIMA:
+## Posibles modelos ARIMA(p, d, q) × (P, D, Q)s
+```{r}
+modelo <- auto.arima(ts_original, d = 2, seasonal = FALSE, stepwise = FALSE, approximation = FALSE)
+summary(modelo)
+```
+
+# Estimación de parámetros:
+## Proceso de estimación para los modelos propuestos
+
+# Selección del mejor modelo:
+## Diagnóstico del modelo
+```{r}
+checkresiduals(modelo)
+```
+
+## Predicciones con el modelo seleccionado
+
+```{r}
+n_total <- length(ts_original)
+n_train <- round(n_total * 0.95)
+train <- ts_original[1:n_train]
+test <- ts_original[(n_train + 1):n_total]
+
+modelo_val <- auto.arima(train, d = 2, seasonal = FALSE, stepwise = FALSE, approximation = FALSE)
+pred <- forecast(modelo_val, h = length(test))
+
+accuracy(pred, test)
+```
+
+# Conclusiones
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#Cargar librerías
 
 ```{r}
 library(tidyverse)
@@ -72,7 +178,7 @@ pred <- forecast(modelo_val, h = length(test))
 
 accuracy(pred, test)
 ```
-\section*{9. Conclusiones}
+# Conclusiones
 
 \begin{itemize}
   \item La serie presenta una tendencia creciente con baja variabilidad relativa.
