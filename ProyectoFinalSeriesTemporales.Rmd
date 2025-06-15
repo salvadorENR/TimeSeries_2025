@@ -23,7 +23,7 @@ header-includes:
 
 # Introducción
 
-El presente informe tiene como objetivo analizar la evolución histórica de la matrícula en educación primaria a nivel mundial durante el período comprendido entre 1970 y 2023. Para ello, se utiliza un conjunto de datos proporcionado por el **UNESCO Institute for Statistics (UIS)**, disponible públicamente a través del portal de datos del **Banco Mundial**, bajo la licencia **CC BY-4.0**.
+El presente informe tiene como objetivo analizar la evolución histórica de la matrícula en educación primaria a nivel mundial durante el período comprendido entre 1970 y 2023. Para ello, se utiliza un conjunto de datos proporcionado por el **UNESCO Institute for Statistics (UIS)**, disponible  públicamente a través del portal de datos del \textbf{Banco Mundial} (\href{https://data.worldbank.org/indicator/SE.PRM.ENRL}{https://data.worldbank.org/indicator/SE.PRM.ENRL}), bajo la licencia **CC BY-4.0**.
 
 El indicador analizado corresponde al número total de alumnos inscritos en el nivel primario, tanto en instituciones públicas como privadas. Los datos se recopilan de los informes oficiales que los países miembros remiten a la UNESCO mediante su encuesta anual de educación. Además, se han armonizado de acuerdo con la **Clasificación Internacional Normalizada de la Educación (CINE)** para garantizar la comparabilidad internacional.
 
@@ -31,7 +31,7 @@ La frecuencia de los datos es anual, y los valores están expresados en millones
 
 
 # Análisis gráfico de la serie
-En esta sección se inspecciona visualmente la evolución de la matrícula para identificar la presencia de tendencia, saltos inusuales y cambios de variabilidad. Estas observaciones guiarán las transformaciones y el modelado posteriores.
+En esta sección se \textbf{analiza gráficamente} la evolución de la matrícula con el objetivo de detectar la presencia de tendencia, variaciones inusuales y cambios en la dispersión. Estas observaciones servirán de base para determinar las transformaciones necesarias \textit{para estabilizar la serie y asegurar la validez de los modelos estadísticos aplicados posteriormente}.
 
 ## Gráfica de la serie
 El examen visual constituye el primer paso para entender la dinámica de la matrícula. Se observa la forma general, la posible presencia de tendencia, cambios de variabilidad y cualquier indicio de estacionalidad.
@@ -83,7 +83,7 @@ ggplot(datos, aes(x = Fecha, y = Alumnos_millones)) +
 ## Análisis de tendencia, variabilidad, estacionalidad etc
 Antes de aplicar cualquier transformación conviene verificar si la serie en **nivel** cumple los supuestos básicos de los modelos lineales de series temporales:  
 (1) *estacionariedad* (media y varianza constantes) y (2) *homocedasticidad* (varianza constante en el tiempo).  
-Para ello se combinan dos pruebas complementarias de raíz unitaria —**ADF** y **KPSS**— y la prueba **ARCH** de Engle; además se estima el parámetro de **Box–Cox** (λ) como indicador de dependencia de la varianza con el nivel.
+Para ello se combinan dos pruebas complementarias de raíz unitaria —**ADF** y **KPSS**— y la prueba **ARCH** de Engle; además se estima el parámetro de **Box–Cox** (\lambda) como indicador de dependencia de la varianza con el nivel.
 
 ```{r tests-nivel, echo=FALSE, message=FALSE, warning=FALSE}
 library(tseries)   # adf.test, kpss.test
@@ -122,9 +122,10 @@ knitr::kable(
 )
 ```
 
-A la luz de los contrastes estadísticos mostrados en la Tabla&nbsp;1, la serie en nivel **no satisface** los supuestos básicos de estacionariedad ni de varianza constante:
+Con base en los resultados estadísticos presentados en la Tabla&nbsp;1, se concluye que la serie en nivel \textbf{no cumple con el supuesto de estacionariedad} para el modelado de series temporales, ya que su media crece con el tiempo y presenta \textbf{varianza no constante}.A continuación se presentan con más detalles los resultados de la Tabla~1.
 
-* **Estacionariedad**  
+
+* **Estacionariedad**   
   * **ADF**: \(p = 0.1006 > 0.05\)  ��� No se rechaza la hipótesis nula de raíz unitaria.  
   * **KPSS**: \(p = 0.01 < 0.05\)  ��� Se rechaza la hipótesis nula de estacionariedad.  
   Ambos resultados apuntan a que la serie **no es estacionaria**.
@@ -133,16 +134,13 @@ A la luz de los contrastes estadísticos mostrados en la Tabla&nbsp;1, la serie 
   * **ARCH (12 rezagos)**: estadístico \(41.82\) con \(p \approx 0\)  ��� Se detecta **heterocedasticidad**.  
   * **Box-Cox**: \(\lambda \approx 2\). Un valor tan alejado de \(0\) indica que transformaciones logarítmicas (o raíz) difícilmente estabilizarían la varianza.
 
-En síntesis, la serie original **presenta raíz unitaria** y **varianza no constante**.   Tener una raíz unitaria significa que la serie se comporta como un paseo aleatorio: cada perturbación desplaza permanentemente su nivel, la varianza se expande con el tiempo y la media ya no permanece fija.
+En resumen, la serie original **presenta raíz unitaria** y **varianza no constante**.   Tener una raíz unitaria significa que la serie se comporta como un paseo aleatorio: cada perturbación desplaza permanentemente su nivel, la varianza se expande con el tiempo y la media ya no permanece fija.
 
 
 
 # Transformación para estacionariedad
 El análisis previo reveló que la serie en su forma original **no es estacionaria** y presenta
-**heterocedasticidad**.  Trabajar con una serie que viole estos supuestos puede llevar a
-estimaciones sesgadas y predicciones poco fiables; por lo tanto, es imprescindible aplicar
-una transformación que devuelva la media y la varianza a un comportamiento estable a lo
-largo del tiempo.
+**heterocedasticidad**.  Trabajar con una serie que incumplan estos supuestos puede llevar a estimaciones sesgadas y predicciones poco fiables; por lo tanto, es imprescindible aplicar una transformación que estabilice la media y la varianza en un nivel sostenido a lo largo del tiempo.
 
 ## Justificación del tipo de transformación aplicada
 Para decidir el tratamiento adecuado se consideraron cuatro contrastes complementarios
@@ -157,17 +155,11 @@ Para decidir el tratamiento adecuado se consideraron cuatro contrastes complemen
 * **Box-Cox**  
   \(\lambda \approx 2\)  →  transformaciones logarítmicas o de raíz no estabilizarían la varianza.
 
-La combinación *ADF no rechaza* + *KPSS rechaza* confirma la existencia de una **raíz unitaria**,
-propia de un proceso tipo “paseo aleatorio”: los choques no se disipan, la varianza crece con
-el tiempo y la media no es estable.  
-Al mismo tiempo, el test ARCH muestra que la varianza cambia de forma sistemática y el valor
+La combinación \textit{ADF no rechaza} + \textit{KPSS rechaza} confirma la existencia de una \textbf{raíz unitaria}, propia de un proceso tipo “paseo aleatorio”: las perturbaciones tienen un efecto permanente, la varianza crece con el tiempo y la media no es estable. Al mismo tiempo, el test ARCH muestra que la varianza cambia de forma sistemática y el valor
 de \(\lambda\) sugiere que **las transformaciones de potencia estándar no son suficientes**.
 
 La forma más directa de afrontar ambos problemas —raíz unitaria y heterocedasticidad—
-es aplicar **una diferencia de primer orden**.  
-La diferenciación elimina la raíz unitaria (resta sucesiva \(Y_t - Y_{t-1}\)) y, en la práctica,
-suele amortiguar los cambios de varianza en series anuales como la presente.  
-En la próxima subsección se comprueba empíricamente si esa única diferencia basta o si es
+es aplicar **una diferencia de primer orden**. La diferenciación elimina la raíz unitaria (resta sucesiva \(Y_t - Y_{t-1}\)) y, en la práctica, suele amortiguar los cambios de varianza en series anuales como la presente. En la próxima subsección se comprueba empíricamente si esa única diferencia basta o si es
 necesario un segundo nivel de diferenciación.
 
 
@@ -223,14 +215,14 @@ ggplot(diff_df, aes(Anio, Diff)) +
   theme_minimal()
 ```
 
-Tras la primera diferencia, el ADF rechaza la raíz unitaria y el KPSS arroja un p-valor de 0,0488; el test ARCH no detecta heterocedasticidad. Visualmente, la serie diferenciada oscila de forma estable alrededor de su constante, con picos pasajeros que regresan rápidamente a la media. Estos resultados confirman que una sola diferencia es suficiente. aplicar una segunda sólo añadiría complejidad sin mejorar la estacionariedad ni la varianza.
+Tras la primera diferencia, el test ADF rechaza la presencia de raíz unitaria, mientras que el KPSS arroja un p-valor de 0.0488, justo en el umbral del 5 \%. Si bien este valor permite rechazar la hipótesis nula de estacionariedad bajo un criterio del 5 \%, no constituye una evidencia contundente, y con un nivel de significancia más exigente, como el 1 \%, no se rechazaría dicha hipótesis. Por su parte, el test ARCH no detecta heterocedasticidad. Visualmente, la serie diferenciada fluctúa de forma estable alrededor de su constante, con picos pasajeros que regresan rápidamente a la media. Estos resultados, tanto estadísticos como gráficos, confirman que una sola diferencia es suficiente; aplicar una segunda sólo añadiría complejidad sin mejorar sustancialmente la estacionariedad de la serie.
 
 
 # Análisis de autocorrelación
 
 El objetivo de este apartado es analizar si los incrementos anuales, una vez eliminada la tendencia, conservan algún tipo de relación temporal. Para ello se utilizan la **Función de autocorrelación simple (ACF)**  y la **Función de autocorrelación parcial (PACF)**  
 
-Ambas gráficas se construyen a partir de la serie ya diferenciada (ΔY), la cual hemos comprobado que es estacionaria tanto en media como en varianza, según las pruebas previas y el análisis visual.
+Ambas gráficas se construyen a partir de la serie ya diferenciada (ΔY), la cual se ha comprobado que es estacionaria tanto en media como en varianza, según las pruebas previas y el análisis visual.
 
 
 ## Gráfica de la función de autocorrelación simple (ACF)
@@ -244,7 +236,7 @@ acf(ts_diff1, lag.max = 20, main = "ACF de ΔY")
 ```
 
 ## Gráfica de la función de autocorrelación parcial (PACF)
-La PACF muestra la relación directa entre los valores de la serie y sus retardos, eliminando el efecto de los retardos intermedios. En la gráfica:
+La PACF muestra la relación directa entre los valores de la serie y sus retardos, eliminando el efecto de los retardos intermedios. 
 
 
 ```{r grafico-pacf, echo=FALSE, fig.height=3.5, fig.width=3.5, message=FALSE}
@@ -257,7 +249,7 @@ pacf(ts_diff1, lag.max = 20, main = "PACF de ΔY")
 En la ACF se observa un pico dominante en el rezago 1, seguido de valores que disminuyen rápidamente y se mantienen dentro de las bandas de confianza, lo que sugiere un patrón típico de un proceso MA(1). La PACF también muestra un único pico significativo en el rezago 1 y luego valores sin importancia, lo que respalda la idea de que la dependencia está concentrada en ese primer rezago. Esta combinación —ACF que cae rápidamente y PACF que muestra solo un pico— es característica de un modelo MA(1) aplicado sobre la serie diferenciada. Por esta razón, se propone evaluar un modelo ARIMA(0, 1, 1), además de comparar con la alternativa simétrica ARIMA(1, 1, 0), en las secciones siguientes.
 
 
-# Propuesta de modelos ARIMA:
+# Propuesta de modelos ARIMA
 Con base en los patrones observados en la ACF y la PACF, se proponen dos modelos candidatos para representar la serie diferenciada:
 
 Modelo A: ARIMA(0, 1, 1) 
@@ -381,11 +373,11 @@ En primer lugar, la **prueba de Ljung-Box** evalúa si existe autocorrelación r
 
 En segundo lugar, la **prueba ARCH** se utiliza para detectar la presencia de heterocedasticidad condicional —es decir, si la varianza de los errores cambia a lo largo del tiempo—, algo que podría invalidar las predicciones del modelo. El valor p correspondiente (0.9414) también es bastante alto, lo que indica que **no se detecta heterocedasticidad** significativa en los residuos del modelo.
 
-Además de las pruebas estadísticas, se presentan dos gráficos para complementar la interpretación:
+Además de las pruebas estadísticas, se presentan dos gráficas para complementar la interpretación:
 
 - El **histograma de residuos** muestra la distribución de los errores del modelo. Visualmente, se observa una forma simétrica y concentrada en torno a cero, lo cual es coherente con una distribución normal centrada. Esto respalda el supuesto de normalidad de los errores.
 
-- El **gráfico Q–Q (quantile–quantile)** compara los cuantiles teóricos de una distribución normal estándar con los cuantiles empíricos de los residuos. En este gráfico, la mayoría de los puntos se alinean con la diagonal roja, lo cual indica que **la distribución de los residuos es aproximadamente normal**, aunque se observa una ligera asimetría en los valores extremos, considerada manejable.
+- La **gráfica Q–Q (quantile–quantile)** compara los cuantiles teóricos de una distribución normal estándar con los cuantiles empíricos de los residuos. En esta gráfica, la mayoría de los puntos se alinean con la diagonal roja, lo cual indica que **la distribución de los residuos es aproximadamente normal**, aunque se observa una ligera asimetría en los valores extremos, considerada manejable.
 
 En conjunto, tanto las pruebas estadísticas como los análisis gráficos confirman que los residuos del modelo ARIMA(0,1,1) cumplen con los supuestos de independencia, homocedasticidad y normalidad, lo cual valida su idoneidad para modelar la serie temporal.
 
