@@ -1,0 +1,352 @@
+---
+title: "Análisis Temporal de la Matrícula en Educación Primaria a Nivel Mundial (1970–2023)"
+author: "Salvador Enrique Rodríguez Hernández (rh06006)"
+date: "`r Sys.Date()`"
+output: 
+  pdf_document:
+    latex_engine: xelatex
+    number_sections: true
+    toc: true
+fontsize: 12pt
+lang: es
+---
+
+---
+
+# Introducción
+
+El presente informe tiene como objetivo analizar la evolución histórica de la matrícula en educación primaria a nivel mundial durante el período comprendido entre 1970 y 2023. Para ello, se utiliza un conjunto de datos proporcionado por el **UNESCO Institute for Statistics (UIS)**, disponible públicamente a través del portal de datos del **Banco Mundial**, bajo la licencia **CC BY-4.0**.
+
+El indicador analizado corresponde al número total de alumnos inscritos en el nivel primario, tanto en instituciones públicas como privadas. Los datos se recopilan de los informes oficiales que los países miembros remiten a la UNESCO mediante su encuesta anual de educación. Además, se han armonizado de acuerdo con la **Clasificación Internacional Normalizada de la Educación (CINE)** para garantizar la comparabilidad internacional.
+
+La frecuencia de los datos es anual, y los valores están expresados en millones de alumnos. Este análisis busca identificar patrones de crecimiento, posibles cambios estructurales en la serie, y proponer un modelo ARIMA que permita realizar proyecciones confiables de la matrícula escolar en los próximos años.
+
+
+# Análisis gráfico de la serie
+A continuación se hará la presentación de la gráfica de la serie de datos originales
+
+## Gráfica de la serie
+```{r}
+library(tidyverse)
+library(forecast)
+library(tsibble)
+library(lubridate)
+library(ggfortify)
+library(readr)
+
+datos <- read_csv("datos_educacion_primaria.csv") %>% 
+  mutate(
+    # usar la columna original Anio y convertirla a objeto yearmonth
+    Año = yearmonth(paste(Anio, "-01"))
+  ) %>% 
+  select(Año, Alumnos_millones) %>%      # conservar solo lo que interesa
+  as_tsibble(index = Año)    
+
+ts_original <- ts(datos$Alumnos_millones, start = 1970, frequency = 1)
+ggplot(datos, aes(x = Año, y = Alumnos_millones)) +
+  geom_line(color = "#1E88E5", linewidth = 1.2) +
+  geom_point(color = "#1E88E5", size = 1) +
+  labs(title = "Matrícula en Educación Primaria (1970–2023)",
+       subtitle = "Serie original en millones de alumnos",
+       x = "Año", y = "Alumnos (millones)") +
+  theme_minimal()
+```
+
+
+
+## Análisis de tendencia, variabilidad, estacionalidad etc
+### Gráfica de la serie
+El examen visual constituye el primer paso para entender la dinámica de la matrícula.  
+Se observa la forma general, la posible presencia de tendencia, cambios de variabilidad y cualquier indicio de estacionalidad.
+
+### 2.1 Gráfico de la serie
+
+```{r grafica-serie, echo=TRUE, message=FALSE}
+library(ggplot2)
+
+ggplot(datos, aes(Anio, Alumnos_millones)) +
+  geom_line(color = "steelblue", linewidth = 1) +
+  labs(title = "Alumnos matriculados (millones) por año",
+       x = "Año", y = "Alumnos (millones)") +
+  theme_minimal()
+```
+### Tendencia, variabilidad y estacionalidad
+A simple vista se aprecia una tendencia ascendente sostenida con algunos saltos puntuales (por ejemplo, mediados de los 2000 y 2016-2020).
+No se detectan patrones estacionales regulares al tratarse de datos anuales; la variabilidad parece aumentar en ciertos periodos, lo que sugiere revisar la homocedasticidad más adelante.
+```{r tabla-descriptivos, echo=TRUE, message=FALSE}
+library(dplyr)
+library(knitr)
+
+# Crecimientos absoluto y porcentual
+datos <- datos |>
+  mutate(
+    delta_abs = Alumnos_millones - lag(Alumnos_millones),
+    delta_pct = 100 * delta_abs / lag(Alumnos_millones)
+  )
+
+# Resumen numérico
+knitr::kable(
+  summarise(datos,
+            Observaciones = n(),
+            Media   = round(mean(Alumnos_millones),   1),
+            Mediana = round(median(Alumnos_millones), 1),
+            SD      = round(sd(Alumnos_millones),     1),
+            Mínimo  = min(Alumnos_millones),
+            Máximo  = max(Alumnos_millones)),
+  caption = "Estadísticos descriptivos de la matrícula"
+)
+```
+## Transformación para estacionariedad
+El siguiente paso consiste en verificar si la serie precisa transformaciones para volverse estacionaria; es decir, con media y varianza constantes en el tiempo.
+
+### Justificación del tipo de transformación aplicada
+Las pruebas ADF y KPSS se aplican sobre la serie en nivel:
+
+```{r tests-nivel, echo=TRUE, message=FALSE}
+library(tseries)
+library(knitr)
+
+adf_nivel  <- adf.test(ts_alumnos, alternative = "stationary")
+kpss_nivel <- kpss.test(ts_alumnos, null = "Level")
+
+knitr::kable(
+  tibble::tibble(
+    Prueba      = c("ADF", "KPSS"),
+    `Estadístico` = round(c(adf_nivel$statistic, kpss_nivel$statistic), 3),
+    `p-valor`     = round(c(adf_nivel$p.value,  kpss_nivel$p.value),     4),
+    Decisión      = c(ifelse(adf_nivel$p.value  < .05, "Rechazar H₀", "No rechazar H₀"),
+                      ifelse(kpss_nivel$p.value < .05, "Rechazar H₀", "No rechazar H₀"))
+  ),
+  caption = "Pruebas de estacionariedad sobre la serie en nivel"
+)
+```
+ el ADF no rechaza la presencia de raíz unitaria mientras que el KPSS sí rechaza la estacionariedad; se concluye que la serie no es estacionaria y debe transformarse.
+
+Además, la prueba ARCH y el parámetro Box-Cox λ indican heterocedasticidad (ARCH p ≈ 0) y un λ ≈ 2, por lo que transformaciones logarítmicas no estabilizarían la varianza.
+
+### Proceso para convertir la serie en estacionaria
+
+## Análisis de autocorrelación:
+Se aplica la primera diferencia y se repiten las pruebas:
+
+```{r test-nivel2, echo=TRUE, message=FALSE}
+library(FinTS)
+library(forecast)
+
+ts_diff1 <- diff(ts_alumnos)
+
+adf_diff1  <- adf.test(ts_diff1,  alternative = "stationary")
+kpss_diff1 <- kpss.test(ts_diff1, null = "Level")
+arch_diff1 <- ArchTest(ts_diff1, lags = 12)
+
+tabla_diff <- tibble::tibble(
+  Prueba      = c("ADF sobre ΔY", "KPSS sobre ΔY", "ARCH sobre ΔY"),
+  `p-valor`   = round(c(adf_diff1$p.value, kpss_diff1$p.value, arch_diff1$p.value), 4),
+  Decisión    = c(ifelse(adf_diff1$p.value  < .05, "Rechazar H₀", "No rechazar H₀"),
+                  ifelse(kpss_diff1$p.value < .05, "Rechazar H₀", "No rechazar H₀"),
+                  ifelse(arch_diff1$p.value < .05, "Heterocedasticidad", "Homocedasticidad"))
+)
+
+knitr::kable(tabla_diff,
+             caption = "Pruebas tras la primera diferencia")
+
+```
+El ADF rechaza la raíz unitaria y el KPSS queda justo en el umbral → la serie puede considerarse prácticamente estacionaria.
+La prueba ARCH deja de ser significativa, por lo que la varianza se estabiliza.
+Dadas estas evidencias, una sola diferencia resulta suficiente; no se procede a diferenciar de nuevo para evitar sobre-diferenciación y pérdida de interpretabilidad.
+
+
+## Análisis de autocorrelación
+
+El objetivo es caracterizar la dependencia temporal de los incrementos anuales una vez alcanzada la estacionariedad.  
+Para ello se examinan, por separado, la **función de autocorrelación simple (ACF)** y la **función de autocorrelación parcial (PACF)**.
+
+### Gráfico de la función de autocorrelación simple (ACF)
+
+```{r grafico-acf, echo=TRUE, fig.height=3.5, fig.width=3.5, message=FALSE}
+ts_diff1 <- diff(ts_alumnos)   # garantiza existencia de ΔY
+acf(ts_diff1, lag.max = 20, main = "ACF de ΔY")
+```
+### Gráfico de la función de autocorrelación parcial (PACF)
+
+
+```{r grafico-pacf, echo=TRUE, fig.height=3.5, fig.width=3.5, message=FALSE}
+pacf(ts_diff1, lag.max = 20, main = "PACF de ΔY")
+
+
+``` 
+### Análisis de los resultados
+En la ACF se observa un pico dominante en el rezago 1, seguido de valores que descienden rápidamente dentro de las bandas de confianza, lo que sugiere un comportamiento de cola corta típico de un proceso MA(1).
+
+La PACF muestra un único pico significativo también en el rezago 1 y carece de cortes posteriores, respaldando la interpretación de que la dependencia se concentra en un rezago de media móvil.
+
+La combinación “ACF se corta y PACF decae” se asocia, por criterio Box–Jenkins, a un modelo MA(1) sobre la serie diferenciada; por ello se propone evaluar un ARIMA(0, 1, 1), junto con la alternativa simétrica ARIMA(1, 1, 0), en las secciones siguientes.
+
+
+## Propuesta de modelos ARIMA:
+
+Cuando la ACF se corta de golpe y la PACF decae, la teoría sugiere un componente MA(1); si fuera al revés—PACF se corta, ACF decae—apuntaríamos a un AR(1). Sin embargo, los datos reales a veces mezclan señales; por transparencia se propondrán dos candidaturas:
+### Candidatura A → ARIMA (0 , 1 , 1) con drift
+La lectura de “ACF-cola / PACF-corte” favorece un MA(1) sobre la serie diferenciada. 
+
+### Candidatura B → ARIMA (1 , 1 , 0) con drift
+Para contrastar, probamos el escenario opuesto: permitir un término autoregresivo y prescindir del MA. Gráficamente no luce tan plausible, pero conviene cuantificarlo.
+
+## Estimación de parámetros
+
+A continuación se presentan los coeficientes obtenidos para **cada uno de los modelos propuestos**.  
+Los parámetros se estimaron mediante **máxima verosimilitud condicional** empleando la función `forecast::Arima`, que ajusta simultáneamente los componentes AR / MA y el término de deriva.
+
+#### Modelo A · ARIMA(0, 1, 1) con drift
+
+```{r est-ma11, echo=TRUE, message=FALSE}
+library(forecast)
+library(knitr)
+
+fit_ma11 <- readRDS("modelo_arima_0_1_1_drift.rds")
+
+knitr::kable(
+  coef(summary(fit_ma11)),
+  digits = 3,
+  caption = "Parámetros estimados – ARIMA(0,1,1) con drift"
+)
+```
+### Modelo B · ARIMA(1, 1, 0) con drift
+
+```{r est-ar11, echo=TRUE, message=FALSE}
+fit_ar11 <- readRDS("modelo_arima_1_1_0_drift.rds")
+
+knitr::kable(
+  coef(summary(fit_ar11)),
+  digits = 3,
+  caption = "Parámetros estimados – ARIMA(1,1,0) con drift"
+)
+``` 
+
+La comparación entre ambos modelos —basada en criterios de información y diagnóstico de residuos— se abordará en la sección siguiente. En este apartado únicamente se consignan los valores derivados del proceso de estimación.
+
+## Selección del mejor modelo
+
+El análisis de criterios de información del apartado anterior identifica al **ARIMA(0, 1, 1) con drift** como la especificación con mejor relación ajuste–complejidad.  
+Para confirmar su idoneidad se procede, primero, al **diagnóstico de residuos** y luego a generar **predicciones** sobre el conjunto de validación (el 5 % final de los datos).
+
+---
+
+### Diagnóstico del modelo
+
+```{r diagnostico-modelo, echo=TRUE, message=FALSE, warning=FALSE}
+library(forecast)
+library(FinTS)
+library(knitr)
+
+# Cargar el modelo seleccionado
+fit_sel <- readRDS("modelo_arima_0_1_1_drift.rds")
+resid_sel <- residuals(fit_sel)
+
+# Pruebas Ljung-Box y ARCH
+ljung_p <- Box.test(resid_sel, lag = 10, type = "Ljung-Box",
+                    fitdf = length(fit_sel$coef))$p.value
+arch_p  <- ArchTest(resid_sel, lags = 12)$p.value
+
+knitr::kable(
+  tibble::tibble(
+    Prueba    = c("Ljung-Box (lag 10)", "ARCH (lag 12)"),
+    `p-valor` = round(c(ljung_p, arch_p), 4),
+    Decisión  = ifelse(c(ljung_p, arch_p) < 0.05,
+                       "Rechazar H₀", "No rechazar H₀")
+  ),
+  caption = "Resultados del diagnóstico de residuos"
+)
+
+# Inspección visual de la distribución
+par(mfrow = c(1, 2))
+hist(resid_sel, main = "Histograma de residuos", xlab = "")
+qqnorm(resid_sel); qqline(resid_sel, col = "red")
+par(mfrow = c(1, 1))
+```
+
+Los valores-p superan con holgura el umbral de 0,05, de modo que no se detecta autocorrelación remanente ni heterocedasticidad.
+El histograma y el Q-Q plot muestran una distribución residual aproximadamente normal, con ligera asimetría manejable.
+
+### Predicciones con el modelo seleccionado
+
+```{r prediccion-validacion, echo=TRUE, message=FALSE, warning=FALSE}
+library(forecast)
+library(knitr)
+library(ggplot2)
+
+# Reconstruir o reutilizar las particiones 95 % / 5 %
+if (!exists("ts_train")) {
+  n_total <- length(ts_alumnos)
+  cut     <- floor(0.95 * n_total)
+  ts_train <- window(ts_alumnos, end   = time(ts_alumnos)[cut])
+  ts_test  <- window(ts_alumnos, start = time(ts_alumnos)[cut] + 1)
+}
+
+# Reajustar solo con el tramo de entrenamiento
+fit_train <- Arima(ts_train, order = c(0, 1, 1), include.drift = TRUE)
+
+# Pronosticar el horizonte de validación
+h  <- length(ts_test)
+fc <- forecast(fit_train, h = h)
+
+# Métricas de precisión
+prec <- accuracy(fc, ts_test)[, c("RMSE", "MAE", "MAPE")]
+knitr::kable(round(prec, 3),
+             caption = "Precisión del pronóstico en el conjunto de validación")
+
+# Gráfico Pronóstico vs Observado
+autoplot(ts_train, series = "Entrenamiento") +
+  autolayer(fc$mean,   series = "Pronóstico") +
+  autolayer(ts_test,   series = "Observado") +
+  autolayer(fc$upper[,2], series = "IC 95 %", linetype = "dashed") +
+  autolayer(fc$lower[,2], linetype = "dashed") +
+  scale_color_manual(values = c(Entrenamiento = "black",
+                                Pronóstico   = "blue",
+                                Observado    = "red",
+                                `IC 95 %`    = "grey")) +
+  labs(title = "Pronóstico sobre el 5 % de validación",
+       x = "Año", y = "Alumnos (millones)") +
+  theme_minimal()
+```
+El modelo reproduce adecuadamente la trayectoria real dentro del periodo reservado para validación, con errores RMSE y MAE moderados y valores observados incluidos dentro del intervalo de confianza al 95 %.
+Este desempeño respalda su utilización para la fase de pronóstico a futuro.
+
+# Conclusiones
+### Nota importante
+
+Los resultados obtenidos y las conclusiones presentadas se sustentan en un conjunto de supuestos que conviene tener siempre presentes:
+
+* El modelo ARIMA seleccionado se ajusta bajo la hipótesis de **linealidad**, **normalidad de los errores** y **varianza constante**.  
+  Cuando estas condiciones no se cumplen plenamente, las estimaciones pueden volverse ineficientes y los intervalos de predicción demasiado optimistas.
+
+* El periodo histórico considerado abarca acontecimientos económicos, demográficos y sanitarios muy dispares.  
+  El modelo captura estos efectos únicamente a través de la dinámica interna de los residuales; **no incorpora variables exógenas** (por ejemplo, políticas educativas o shocks macroeconómicos), por lo que la capacidad de extrapolación está condicionada a que tales factores no cambien de régimen.
+
+* Las pruebas estadísticas (ADF, KPSS, ARCH, Ljung-Box) se basan en tamaños muestrales relativamente pequeños; por ello, su poder puede ser limitado.  
+  Interpretar un p-valor > 0.05 como evidencia concluyente de “no autocorrelación” o “varianza constante” debe hacerse con cautela.
+
+* El corte 95 % – 5 % para validación permite evaluar el desempeño fuera de muestra, pero **una única partición** no garantiza robustez.  
+  Para un análisis más completo resultaría conveniente aplicar *time-series cross-validation* o un esquema *rolling origin* con múltiples ventanas.
+
+En síntesis, los resultados constituyen **una aproximación razonable** para la dinámica histórica observada, pero cualquier uso prospectivo debe considerar las limitaciones anteriores y actualizarse conforme aparezcan nuevos datos.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

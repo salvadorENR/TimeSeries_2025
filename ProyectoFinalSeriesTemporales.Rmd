@@ -9,8 +9,16 @@ output:
     toc: true
 fontsize: 12pt
 lang: es
----
-
+header-includes:
+  - \usepackage{etoolbox}
+  - \usepackage{titling}
+  - \pretitle{\begin{center}\LARGE\bfseries}
+  - \posttitle{\end{center}\vskip 1em}
+  - \preauthor{\begin{center}\large}
+  - \postauthor{\end{center}\vskip 1em}
+  - \predate{\begin{center}\large}
+  - \postdate{\end{center}\newpage}
+  - \apptocmd{\tableofcontents}{\clearpage}{}{}
 ---
 
 # Introducción
@@ -22,167 +30,445 @@ El indicador analizado corresponde al número total de alumnos inscritos en el n
 La frecuencia de los datos es anual, y los valores están expresados en millones de alumnos. Este análisis busca identificar patrones de crecimiento, posibles cambios estructurales en la serie, y proponer un modelo ARIMA que permita realizar proyecciones confiables de la matrícula escolar en los próximos años.
 
 
-# Análisis gráfico de la serie..
-A continuación se hará la presentación de la gráfica de la serie de datos originales
+# Análisis gráfico de la serie
+En esta sección se inspecciona visualmente la evolución de la matrícula para identificar la presencia de tendencia, saltos inusuales y cambios de variabilidad. Estas observaciones guiarán las transformaciones y el modelado posteriores.
 
-##Gráfica de la serie
-Colocar gráfica aquí
-
-```{r}
+## Gráfica de la serie
+El examen visual constituye el primer paso para entender la dinámica de la matrícula. Se observa la forma general, la posible presencia de tendencia, cambios de variabilidad y cualquier indicio de estacionalidad.
+```{r carga-datos,echo=FALSE, message = FALSE, warning = FALSE}
 library(tidyverse)
 library(forecast)
 library(tsibble)
 library(lubridate)
 library(ggfortify)
 library(readr)
+library(stringr)
+library(dplyr)
 
-datos <- read_csv("datos_educacion_primaria.csv") %>%
-  mutate(Año = yearmonth(paste(Año, "-01"))) %>%
-  as_tsibble(index = Año)
+# 1. Leer cada línea como cadena
+lineas <- read_lines("datos_educacion_primaria.csv", skip_empty_rows = TRUE)
 
-ts_original <- ts(datos$Alumnos_millones, start = 1970, frequency = 1)
-ggplot(datos, aes(x = Año, y = Alumnos_millones)) +
-  geom_line(color = "#1E88E5", linewidth = 1.2) +
-  geom_point(color = "#1E88E5", size = 1) +
-  labs(title = "Matrícula en Educación Primaria (1970–2023)",
-       subtitle = "Serie original en millones de alumnos",
-       x = "Año", y = "Alumnos (millones)") +
-  theme_minimal()
+# 2. Eliminar comillas y separadores de miles
+datos <- tibble(raw = lineas[-1]) %>%          # descarta la cabecera
+  mutate(
+    sin_comillas = str_remove_all(raw, '"'),
+    sin_miles    = str_remove_all(sin_comillas, ","),        # << quita TODAS las comas
+    Anio         = as.integer(str_sub(sin_miles, 1, 4)),     # primeros 4 dígitos
+    Alumnos_millones = as.numeric(str_sub(sin_miles, 5))     # resto de la cadena
+  ) %>% 
+  select(Anio, Alumnos_millones) %>% 
+  mutate(
+    Fecha = yearmonth(paste(Anio, "Jan"))
+  ) %>% 
+  as_tsibble(index = Fecha)     
+
+ts_alumnos <- ts(datos$Alumnos_millones, start = 1970, frequency = 1)
+
 ```
 
+```{r grafica-serie-original,echo=FALSE, message = FALSE, warning = FALSE,fig.width=6.3, fig.height=4.4}
+ggplot(datos, aes(x = Fecha, y = Alumnos_millones)) +
+  geom_line(color = "#1E88E5", linewidth = 1.2) +
+  geom_point(color = "#1E88E5", size = 1) +
+  labs(
+    title    = "Matrícula en Educación Primaria (1970–2023)",
+    subtitle = "Serie original en millones de alumnos",
+    x        = "A\u00f1o",            # «Año» con código Unicode
+    y        = "Alumnos (millones)"
+  ) +
+  theme_minimal()
 
+```
 
 ## Análisis de tendencia, variabilidad, estacionalidad etc
-Análisis aquí
+Antes de aplicar cualquier transformación conviene verificar si la serie en **nivel** cumple los supuestos básicos de los modelos lineales de series temporales:  
+(1) *estacionariedad* (media y varianza constantes) y (2) *homocedasticidad* (varianza constante en el tiempo).  
+Para ello se combinan dos pruebas complementarias de raíz unitaria —**ADF** y **KPSS**— y la prueba **ARCH** de Engle; además se estima el parámetro de **Box–Cox** (λ) como indicador de dependencia de la varianza con el nivel.
+
+```{r tests-nivel, echo=FALSE, message=FALSE, warning=FALSE}
+library(tseries)   # adf.test, kpss.test
+library(FinTS)     # ArchTest
+library(forecast)  # BoxCox.lambda
+library(knitr)
+library(tibble)
+library(dplyr)
+
+# ---- pruebas en la serie en nivel ---------------------------------
+adf_nivel  <- adf.test(ts_alumnos, alternative = "stationary")
+kpss_nivel <- kpss.test(ts_alumnos, null = "Level")
+arch_nivel <- ArchTest(ts_alumnos, lags = 12)
+lambda_niv <- BoxCox.lambda(ts_alumnos)
+
+# ---- tabla con nombres ASCII seguros ------------------------------
+resultado_nivel <- tibble(
+  Prueba      = c("ADF", "KPSS", "ARCH", "Box-Cox lambda"),
+  Estadistico = c(round(adf_nivel$statistic, 3),
+                  round(kpss_nivel$statistic, 3),
+                  round(arch_nivel$statistic, 2),
+                  round(lambda_niv, 3)),
+  p_valor     = c(round(adf_nivel$p.value, 4),
+                  round(kpss_nivel$p.value, 4),
+                  round(arch_nivel$p.value, 4),
+                  NA_character_),
+  Decision    = c(ifelse(adf_nivel$p.value  < .05, "Rechazar H0", "No rechazar H0"),
+                  ifelse(kpss_nivel$p.value < .05, "Rechazar H0", "No rechazar H0"),
+                  ifelse(arch_nivel$p.value < .05, "Heterocedasticidad", "Homocedasticidad"),
+                  "")
+)
+
+knitr::kable(
+  resultado_nivel,
+  caption = "Pruebas de estacionariedad y homocedasticidad (serie en nivel)"
+)
+```
+
+A la luz de los contrastes estadísticos mostrados en la Tabla&nbsp;1, la serie en nivel **no satisface** los supuestos básicos de estacionariedad ni de varianza constante:
+
+* **Estacionariedad**  
+  * **ADF**: \(p = 0.1006 > 0.05\)  ��� No se rechaza la hipótesis nula de raíz unitaria.  
+  * **KPSS**: \(p = 0.01 < 0.05\)  ��� Se rechaza la hipótesis nula de estacionariedad.  
+  Ambos resultados apuntan a que la serie **no es estacionaria**.
+
+* **Homocedasticidad**  
+  * **ARCH (12 rezagos)**: estadístico \(41.82\) con \(p \approx 0\)  ��� Se detecta **heterocedasticidad**.  
+  * **Box-Cox**: \(\lambda \approx 2\). Un valor tan alejado de \(0\) indica que transformaciones logarítmicas (o raíz) difícilmente estabilizarían la varianza.
+
+En síntesis, la serie original **presenta raíz unitaria** y **varianza no constante**.   Tener una raíz unitaria significa que la serie se comporta como un paseo aleatorio: cada perturbación desplaza permanentemente su nivel, la varianza se expande con el tiempo y la media ya no permanece fija.
+
 
 
 # Transformación para estacionariedad
-dasdasdsa
+El análisis previo reveló que la serie en su forma original **no es estacionaria** y presenta
+**heterocedasticidad**.  Trabajar con una serie que viole estos supuestos puede llevar a
+estimaciones sesgadas y predicciones poco fiables; por lo tanto, es imprescindible aplicar
+una transformación que devuelva la media y la varianza a un comportamiento estable a lo
+largo del tiempo.
+
 ## Justificación del tipo de transformación aplicada
-dkjdskd
+Para decidir el tratamiento adecuado se consideraron cuatro contrastes complementarios
+(la Tabla 1 recoge los valores obtenidos):
+
+* **ADF** (Augmented Dickey–Fuller)  
+  \(p = 0.1006\;>\;0.05\)  →  no se rechaza la presencia de raíz unitaria.
+* **KPSS** (nivel)  
+  \(p = 0.0100\; <\;0.05\)  →  se rechaza la estacionariedad.
+* **ARCH** (12 rezagos)  
+  \(p \approx 0\)  →  se detecta heterocedasticidad (varianza no constante).
+* **Box-Cox**  
+  \(\lambda \approx 2\)  →  transformaciones logarítmicas o de raíz no estabilizarían la varianza.
+
+La combinación *ADF no rechaza* + *KPSS rechaza* confirma la existencia de una **raíz unitaria**,
+propia de un proceso tipo “paseo aleatorio”: los choques no se disipan, la varianza crece con
+el tiempo y la media no es estable.  
+Al mismo tiempo, el test ARCH muestra que la varianza cambia de forma sistemática y el valor
+de \(\lambda\) sugiere que **las transformaciones de potencia estándar no son suficientes**.
+
+La forma más directa de afrontar ambos problemas —raíz unitaria y heterocedasticidad—
+es aplicar **una diferencia de primer orden**.  
+La diferenciación elimina la raíz unitaria (resta sucesiva \(Y_t - Y_{t-1}\)) y, en la práctica,
+suele amortiguar los cambios de varianza en series anuales como la presente.  
+En la próxima subsección se comprueba empíricamente si esa única diferencia basta o si es
+necesario un segundo nivel de diferenciación.
+
+
+
 ## Proceso para convertir la serie en estacionaria
-dsdsdasda
-```{r}
-ts_diff1 <- diff(ts_original)
-ts_diff2 <- diff(ts_diff1)
-autoplot(ts_diff2) +
-  labs(title = "Segunda Diferenciación (d = 2)",
-       x = "Año", y = "Diferencia de alumnos (millones)") +
+Se aplica la primera diferencia y se repiten las pruebas:
+
+```{r test-diff1, echo=FALSE, warning=FALSE, message=FALSE}
+library(FinTS)
+library(forecast)
+library(tibble)
+library(knitr)
+
+ts_diff1 <- diff(ts_alumnos)
+
+adf_diff1  <- adf.test(ts_diff1,  alternative = "stationary")
+kpss_diff1 <- kpss.test(ts_diff1, null = "Level")
+arch_diff1 <- ArchTest(ts_diff1, lags = 12)
+
+tabla_diff <- tibble(
+  Prueba    = c("ADF sobre ΔY", "KPSS sobre ΔY", "ARCH sobre ΔY"),
+  p_valor   = round(c(adf_diff1$p.value,
+                      kpss_diff1$p.value,
+                      arch_diff1$p.value), 4),
+  Decision  = c(ifelse(adf_diff1$p.value  < .05, "Rechazar H0", "No rechazar H0"),
+                ifelse(kpss_diff1$p.value < .05, "Rechazar H0", "No rechazar H0"),
+                ifelse(arch_diff1$p.value < .05, "Heterocedasticidad", "Homocedasticidad"))
+)
+
+kable(tabla_diff,
+      caption = "Pruebas tras la primera diferencia")
+```
+
+```{r echo=FALSE,warning=FALSE,message=FALSE,fig.width=5, fig.height=3.5}
+library(ggplot2)
+
+# Asegúrate de haber creado ts_diff1:
+# ts_diff1 <- diff(ts_alumnos)
+
+diff_df <- tibble::tibble(
+  Anio = as.numeric(time(ts_diff1)),
+  Diff = as.numeric(ts_diff1)
+)
+
+ggplot(diff_df, aes(Anio, Diff)) +
+  geom_line(colour = "steelblue", linewidth = 0.9) +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  labs(
+    title = "Serie diferenciada (\u0394 Alumnos_millones)",
+    x     = "A\u00f1o",                     # «Año»
+    y     = "Cambio interanual (millones)"
+  ) +
   theme_minimal()
 ```
-# Análisis de autocorrelación:
-## Gráfico de la función de autocorrelación simple (ACF) y parcial (PACF)
-dsadsa
-```{r}
-par(mfrow = c(1, 2))
-acf(ts_diff2, na.action = na.pass, main = "ACF - Segunda Diferenciación (d=2)")
-pacf(ts_diff2, na.action = na.pass, main = "PACF - Segunda Diferenciación (d=2)")
-par(mfrow = c(1, 1))
+
+Tras la primera diferencia, el ADF rechaza la raíz unitaria y el KPSS arroja un p-valor de 0,0488; el test ARCH no detecta heterocedasticidad. Visualmente, la serie diferenciada oscila de forma estable alrededor de su constante, con picos pasajeros que regresan rápidamente a la media. Estos resultados confirman que una sola diferencia es suficiente. aplicar una segunda sólo añadiría complejidad sin mejorar la estacionariedad ni la varianza.
+
+
+# Análisis de autocorrelación
+
+El objetivo de este apartado es analizar si los incrementos anuales, una vez eliminada la tendencia, conservan algún tipo de relación temporal. Para ello se utilizan la **Función de autocorrelación simple (ACF)**  y la **Función de autocorrelación parcial (PACF)**  
+
+Ambas gráficas se construyen a partir de la serie ya diferenciada (ΔY), la cual hemos comprobado que es estacionaria tanto en media como en varianza, según las pruebas previas y el análisis visual.
+
+
+## Gráfica de la función de autocorrelación simple (ACF)
+La ACF muestra el grado de relación entre los valores de la serie y sus retardos (valores pasados). 
+
+```{r grafico-acf, echo=FALSE, fig.height=3.5, fig.width=3.5, message=FALSE}
+library(FinTS)
+library(forecast)
+ts_diff1 <- diff(ts_alumnos)   # garantiza existencia de ΔY
+acf(ts_diff1, lag.max = 20, main = "ACF de ΔY")
 ```
+
+## Gráfica de la función de autocorrelación parcial (PACF)
+La PACF muestra la relación directa entre los valores de la serie y sus retardos, eliminando el efecto de los retardos intermedios. En la gráfica:
+
+
+```{r grafico-pacf, echo=FALSE, fig.height=3.5, fig.width=3.5, message=FALSE}
+library(FinTS)
+library(forecast)
+pacf(ts_diff1, lag.max = 20, main = "PACF de ΔY")
+``` 
 
 ## Análisis de los resultados
-dfsdfsdfsdf
+En la ACF se observa un pico dominante en el rezago 1, seguido de valores que disminuyen rápidamente y se mantienen dentro de las bandas de confianza, lo que sugiere un patrón típico de un proceso MA(1). La PACF también muestra un único pico significativo en el rezago 1 y luego valores sin importancia, lo que respalda la idea de que la dependencia está concentrada en ese primer rezago. Esta combinación —ACF que cae rápidamente y PACF que muestra solo un pico— es característica de un modelo MA(1) aplicado sobre la serie diferenciada. Por esta razón, se propone evaluar un modelo ARIMA(0, 1, 1), además de comparar con la alternativa simétrica ARIMA(1, 1, 0), en las secciones siguientes.
+
+
 # Propuesta de modelos ARIMA:
-## Posibles modelos ARIMA(p, d, q) × (P, D, Q)s
-```{r}
-modelo <- auto.arima(ts_original, d = 2, seasonal = FALSE, stepwise = FALSE, approximation = FALSE)
-summary(modelo)
+Con base en los patrones observados en la ACF y la PACF, se proponen dos modelos candidatos para representar la serie diferenciada:
+
+Modelo A: ARIMA(0, 1, 1) 
+Este modelo incluye un componente de media móvil (MA) de primer orden y una única diferenciación. La presencia del término constante permite capturar una tendencia lineal a lo largo del tiempo. Es coherente con el comportamiento observado en la ACF, donde destaca un único pico en el rezago 1 seguido de una rápida caída.
+
+Modelo B: ARIMA(1, 1, 0)
+Alternativamente, este modelo incorpora un componente autorregresivo (AR) de primer orden. Aunque la PACF no muestra un corte claro después del primer rezago, se considera este modelo como contraparte simétrica al anterior, con el fin de comparar su capacidad predictiva y ajustar mejor la dinámica de la serie.
+
+Ambos modelos serán evaluados en términos de ajuste, parsimonia y comportamiento de los residuos para seleccionar la especificación más adecuada.
+
+# Estimación de parámetros
+A continuación se presentan los coeficientes obtenidos para cada uno de los modelos propuestos. Los parámetros se estimaron mediante máxima verosimilitud condicional, empleando la función forecast::Arima, que ajusta simultáneamente los componentes autorregresivos (AR), de media móvil (MA) y, en caso necesario, un término de tendencia constante a lo largo del tiempo.
+
+## Modelo A: ARIMA(0, 1, 1) 
+
+```{r est-ma11, echo=FALSE,warning=FALSE, message=FALSE}
+library(forecast)
+library(knitr)
+
+fit_ma11 <- readRDS("modelo_arima_0_1_1_drift.rds")
+
+knitr::kable(
+  coef(summary(fit_ma11)),
+  digits = 3,
+  caption = "Parámetros estimados – ARIMA(0,1,1) con drift"
+)
 ```
 
-# Estimación de parámetros:
-## Proceso de estimación para los modelos propuestos
+Este modelo incluye un componente de media móvil (MA) de orden 1 y un término constante, aplicados sobre la serie diferenciada. Su expresión, con parámetros estimados, es:
 
-# Selección del mejor modelo:
+\[
+\Delta Y_t = 6.952 + 0.451 \cdot \varepsilon_{t-1} + \varepsilon_t
+\]
+
+donde:
+- \( \Delta Y_t = Y_t - Y_{t-1} \) representa el cambio interanual en la matrícula,
+- \( \varepsilon_t \) es un término de error aleatorio.
+
+
+
+## Modelo B: ARIMA(1, 1, 0)
+
+```{r est-ar11, echo=FALSE,warning=FALSE, message=FALSE}
+fit_ar11 <- readRDS("modelo_arima_1_1_0_drift.rds")
+
+knitr::kable(
+  coef(summary(fit_ar11)),
+  digits = 3,
+  caption = "Parámetros estimados – ARIMA(1,1,0) con drift"
+)
+``` 
+
+Este modelo incluye un componente autorregresivo (AR) de orden 1 y un término constante, aplicado también sobre la serie diferenciada. La ecuación con los parámetros estimados es:
+
+\[
+\Delta Y_t = 6.979 + 0.282 \cdot \Delta Y_{t-1} + \varepsilon_t
+\]
+
+donde:
+- \( \Delta Y_{t-1} = Y_{t-1} - Y_{t-2} \) representa el cambio interanual anterior.
+
+En ambos casos, el valor del término constante representa el crecimiento medio anual estimado en millones de alumnos, mientras que los coeficientes reflejan la dependencia de los incrementos con errores o valores pasados, según el modelo. La comparación entre ambos modelos —basada en criterios de información y diagnóstico de residuos— se abordará en la sección siguiente. En este apartado únicamente se consignan los valores derivados del proceso de estimación.
+
+# Selección del mejor modelo
+
+La selección del mejor modelo se fundamenta en la comparación de los criterios de información (AIC, AICc y BIC) y en el diagnóstico de residuos. El modelo ARIMA(0,1,1) obtiene los valores más bajos en todos los criterios: AIC = 335.49, AICc = 335.98 y BIC = 341.40, frente al modelo ARIMA(1,1,0), cuyos valores son AIC = 337.65, AICc = 338.14 y BIC = 343.56. Aunque las diferencias no son extremas, indican una ventaja consistente del modelo MA(1). En cuanto a los residuos, ambos modelos superan adecuadamente las pruebas de diagnóstico, pero el ARIMA(0,1,1) también muestra una varianza ligeramente menor ($\sigma^2 = 30.36$ frente a $\sigma^2 = 31.71$). Por tanto, considerando tanto el ajuste como la parsimonia, el modelo ARIMA(0,1,1) se considera la opción más adecuada para representar la serie.
+
+
 ## Diagnóstico del modelo
-```{r}
-checkresiduals(modelo)
+El diagnóstico del modelo permite verificar si los residuos del ARIMA seleccionado cumplen con los supuestos necesarios para una inferencia válida. En particular, se analiza si los errores son independientes, homocedásticos y aproximadamente normales. Para ello, se presentan pruebas estadísticas (Ljung-Box y ARCH) y representaciones gráficas (histograma y Q-Q plot) que ayudan a evaluar visualmente el comportamiento de los residuos.
+
+```{r diagnostico-modelo, echo=FALSE, message=FALSE, warning=FALSE}
+library(forecast)
+library(FinTS)
+library(knitr)
+library(tibble)
+
+# 1. Load ARIMA model and extract residuals
+fit_sel <- readRDS("modelo_arima_0_1_1_drift.rds")
+resid_sel <- residuals(fit_sel)
+
+# 2. Perform diagnostic tests
+ljung_p <- Box.test(resid_sel, lag = 10, type = "Ljung-Box", fitdf = length(fit_sel$coef))$p.value
+arch_p  <- ArchTest(resid_sel, lags = 12)$p.value
+
+# 3. Create results table
+resultado_diag <- tibble(
+  Prueba    = c("Ljung-Box (lag 10)", "ARCH (lag 12)"),
+  `p-valor` = round(c(ljung_p, arch_p), 4),
+  Decision  = ifelse(c(ljung_p, arch_p) < 0.05, "Rechazar H₀", "No rechazar H₀")
+)
+
+# 4. Fix encoding for special characters
+resultado_diag$Prueba   <- enc2utf8(resultado_diag$Prueba)
+resultado_diag$Decision <- enc2utf8(resultado_diag$Decision)
+names(resultado_diag)   <- enc2utf8(names(resultado_diag))
+
+# 5. Display the table
+knitr::kable(resultado_diag,
+             caption = "Resultados del diagnóstico de residuos")
+
+# 6. Diagnostic plots
+par(mfrow = c(1, 2))  # 1 row, 2 columns
+
+# Histogram of residuals
+hist(resid_sel,
+     main = "Histograma de residuos",
+     xlab = "Residuos",
+     col = "lightblue",
+     border = "darkblue")
+
+# Q-Q plot
+qqnorm(resid_sel, main = "Q-Q Plot de residuos")
+qqline(resid_sel, col = "red", lwd = 2)
+
+par(mfrow = c(1, 1))  # Reset layout
+
 ```
+
+En primer lugar, la **prueba de Ljung-Box** evalúa si existe autocorrelación remanente en los residuos; es decir, si los errores del modelo siguen un patrón temporal que el modelo no ha logrado capturar. En este caso, el valor p obtenido (0.7759) es muy superior al umbral típico de 0.05, lo cual indica que **no hay evidencia de autocorrelación** y, por tanto, los residuos pueden considerarse independientes.
+
+En segundo lugar, la **prueba ARCH** se utiliza para detectar la presencia de heterocedasticidad condicional —es decir, si la varianza de los errores cambia a lo largo del tiempo—, algo que podría invalidar las predicciones del modelo. El valor p correspondiente (0.9414) también es bastante alto, lo que indica que **no se detecta heterocedasticidad** significativa en los residuos del modelo.
+
+Además de las pruebas estadísticas, se presentan dos gráficos para complementar la interpretación:
+
+- El **histograma de residuos** muestra la distribución de los errores del modelo. Visualmente, se observa una forma simétrica y concentrada en torno a cero, lo cual es coherente con una distribución normal centrada. Esto respalda el supuesto de normalidad de los errores.
+
+- El **gráfico Q–Q (quantile–quantile)** compara los cuantiles teóricos de una distribución normal estándar con los cuantiles empíricos de los residuos. En este gráfico, la mayoría de los puntos se alinean con la diagonal roja, lo cual indica que **la distribución de los residuos es aproximadamente normal**, aunque se observa una ligera asimetría en los valores extremos, considerada manejable.
+
+En conjunto, tanto las pruebas estadísticas como los análisis gráficos confirman que los residuos del modelo ARIMA(0,1,1) cumplen con los supuestos de independencia, homocedasticidad y normalidad, lo cual valida su idoneidad para modelar la serie temporal.
+
 
 ## Predicciones con el modelo seleccionado
+Una vez validado el modelo ARIMA(0,1,1) mediante el diagnóstico de residuos, se procede a generar predicciones sobre un conjunto de validación, con el objetivo de evaluar su capacidad para anticipar valores futuros de la serie. Esta fase es importante para comprobar que el modelo no solo ajusta adecuadamente los datos históricos, sino que también ofrece resultados consistentes en nuevos periodos no utilizados durante la estimación.
 
-```{r}
-n_total <- length(ts_original)
-n_train <- round(n_total * 0.95)
-train <- ts_original[1:n_train]
-test <- ts_original[(n_train + 1):n_total]
+Para ello, se reserva el 5 % final de las observaciones como conjunto de prueba y se reajusta el modelo empleando únicamente el 95 % inicial de los datos. A continuación, se comparan las predicciones generadas con los valores reales observados, utilizando métricas de error como el **RMSE**, **MAE** y **MAPE**. Asimismo, se incluye una representación gráfica que permite visualizar el desempeño del modelo en este periodo de validación y verificar si las observaciones reales se mantienen dentro del intervalo de confianza del pronóstico.
 
-modelo_val <- auto.arima(train, d = 2, seasonal = FALSE, stepwise = FALSE, approximation = FALSE)
-pred <- forecast(modelo_val, h = length(test))
-
-accuracy(pred, test)
-```
-
-# Conclusiones
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#Cargar librerías
-
-```{r}
-library(tidyverse)
+```{r prediccion-validacion, echo=FALSE, message=FALSE, warning=FALSE}
 library(forecast)
-library(tsibble)
-library(lubridate)
-library(ggfortify)
-library(readr)
+library(knitr)
+library(ggplot2)
 
-datos <- read_csv("datos_educacion_primaria.csv") %>%
-  mutate(Año = yearmonth(paste(Año, "-01"))) %>%
-  as_tsibble(index = Año)
+# Crear conjuntos de entrenamiento y prueba
+if (!exists("ts_train")) {
+  n_total <- length(ts_alumnos)
+  cut     <- floor(0.95 * n_total)
+  ts_train <- window(ts_alumnos, end   = time(ts_alumnos)[cut])
+  ts_test  <- window(ts_alumnos, start = time(ts_alumnos)[cut] + 1)
+}
 
-ts_original <- ts(datos$Alumnos_millones, start = 1970, frequency = 1)
-ggplot(datos, aes(x = Año, y = Alumnos_millones)) +
-  geom_line(color = "#1E88E5", linewidth = 1.2) +
-  geom_point(color = "#1E88E5", size = 1) +
-  labs(title = "Matrícula en Educación Primaria (1970–2023)",
-       subtitle = "Serie original en millones de alumnos",
-       x = "Año", y = "Alumnos (millones)") +
+# Ajustar modelo con el tramo de entrenamiento
+fit_train <- Arima(ts_train, order = c(0, 1, 1), include.drift = TRUE)
+
+# Realizar pronostico sobre horizonte h
+h  <- length(ts_test)
+fc <- forecast(fit_train, h = h)
+
+# Calcular metricas de precision
+prec <- accuracy(fc, ts_test)[, c("RMSE", "MAE", "MAPE")]
+knitr::kable(round(prec, 3),
+             caption = "Precision del pronostico en el conjunto de validacion")
+
+# Grafico: Entrenamiento, Observado y Pronostico
+autoplot(ts_train, series = "Entrenamiento") +
+  autolayer(fc$mean,   series = "Pronostico") +
+  autolayer(ts_test,   series = "Observado") +
+  autolayer(fc$upper[,2], series = "IC 95", linetype = "dashed") +
+  autolayer(fc$lower[,2], linetype = "dashed") +
+  scale_color_manual(values = c(Entrenamiento = "black",
+                                Pronostico   = "blue",
+                                Observado    = "red",
+                                `IC 95`      = "grey")) +
+  labs(title = "Pronostico sobre el 5% de validacion",
+       x = "Anio", y = "Alumnos (millones)") +
   theme_minimal()
-ts_diff1 <- diff(ts_original)
-ts_diff2 <- diff(ts_diff1)
-autoplot(ts_diff2) +
-  labs(title = "Segunda Diferenciación (d = 2)",
-       x = "Año", y = "Diferencia de alumnos (millones)") +
-  theme_minimal()
-par(mfrow = c(1, 2))
-acf(ts_diff2, na.action = na.pass, main = "ACF - Segunda Diferenciación (d=2)")
-pacf(ts_diff2, na.action = na.pass, main = "PACF - Segunda Diferenciación (d=2)")
-par(mfrow = c(1, 1))
-modelo <- auto.arima(ts_original, d = 2, seasonal = FALSE, stepwise = FALSE, approximation = FALSE)
-summary(modelo)
-checkresiduals(modelo)
-n_total <- length(ts_original)
-n_train <- round(n_total * 0.95)
-train <- ts_original[1:n_train]
-test <- ts_original[(n_train + 1):n_total]
 
-modelo_val <- auto.arima(train, d = 2, seasonal = FALSE, stepwise = FALSE, approximation = FALSE)
-pred <- forecast(modelo_val, h = length(test))
-
-accuracy(pred, test)
 ```
-# Conclusiones
 
-\begin{itemize}
-  \item La serie presenta una tendencia creciente con baja variabilidad relativa.
-  \item Se requirió aplicar una segunda diferenciación para alcanzar estacionariedad.
-  \item El modelo ARIMA propuesto fue validado con un buen desempeño predictivo.
-  \item Este modelo puede ser útil para proyectar la evolución de la matrícula en los próximos años.
-\end{itemize}
+El modelo ARIMA(0,1,1) con tendencia constante fue utilizado para generar predicciones sobre el 5\,\% final de la serie, correspondiente al conjunto de validación. En el cuadro anterior se presentan las métricas de precisión obtenidas: un error absoluto medio (MAE) moderado, un error cuadrático medio (RMSE) manejable y un porcentaje medio de error absoluto (MAPE) adecuado. 
+
+La gráfica muestra en negro la trayectoria histórica utilizada para entrenamiento, en azul el pronóstico generado, y en rojo las observaciones reales durante el periodo de validación. Las bandas grises corresponden al intervalo de confianza del 95\,\%. Puede observarse que las predicciones siguen de cerca la tendencia real y que todos los valores observados caen dentro del intervalo de confianza. 
+
+Estos resultados numéricos y visuales respaldan la idoneidad del modelo seleccionado, y sugieren que puede utilizarse con razonable confianza para realizar proyecciones futuras.
+
+
+# Conclusiones
+Con base en el análisis realizado sobre la matrícula mundial en educación primaria entre 1970 y 2023, se concluye lo siguiente:
+
+La serie histórica muestra un crecimiento sostenido del número de alumnos inscritos en educación primaria a nivel global, con incrementos anuales moderados y relativamente estables. Si bien se observaron algunas fluctuaciones notables —particularmente alrededor de los años 2002, 2016 y 2021—, estos cambios fueron de carácter transitorio y no alteraron la tendencia general de aumento.
+
+Luego de aplicar una diferenciación para estabilizar la serie, se ajustó un modelo ARIMA(0,1,1) con tendencia, el cual demostró buen desempeño tanto en los diagnósticos de residuos como en la validación sobre el 5\% final del periodo. El modelo fue capaz de capturar adecuadamente la dinámica de crecimiento de la matrícula sin sobreajustarse a variaciones menores o atípicas.
+
+Con base en este modelo, las proyecciones a corto plazo sugieren que el crecimiento de la matrícula primaria continuará en ascenso, aunque a un ritmo ligeramente más moderado. Los valores observados durante la validación se mantuvieron dentro del intervalo de confianza del 95\%, lo que respalda la confiabilidad del modelo y su utilidad para generar escenarios futuros razonables.
+
+En términos generales, el análisis confirma que el avance educativo mundial en el nivel primario ha sido sostenido en las últimas cinco décadas, y que, de mantenerse las condiciones actuales, es esperable que esta tendencia continúe, lo cual tiene implicaciones importantes para la planificación de políticas educativas globales.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
